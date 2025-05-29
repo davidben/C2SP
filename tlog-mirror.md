@@ -214,9 +214,9 @@ as a fallback. However, if it does so, it MUST truncate the result to the size
 of the requested partial tile. Extra entries will not be validated by the
 checkpoint.
 
-#### TBD Push-based Updates
+### TBD Push-based Updates
 
-TODO: It may be useful to have a push-based update procedure, so that a log
+TODO: It may be useful to have a push-based update endpoint, so that a log
 can upload data to a mirror, and get a response once the mirror has updated far
 enough. In the current design, the log needs to poll the checkpoint endpoint to
 find out when the mirror has caught up.
@@ -238,3 +238,7 @@ position. If it's equal, we're golden. If less than, we need to be told the hash
 and a consistency proof to the actual witness position... more likely we'd ask
 for a 409 Conflict, but then you might never be able to get in sync if the
 witness position updates too fast.
+
+A push-based endpoint design could either subsume the `add-checkpoint` endpoint,
+or be done in two separate HTTP requests, one to update the witness position and
+another to stream data.

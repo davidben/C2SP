@@ -71,9 +71,15 @@ the mirror checkpoint.
 ### Witness Checkpoint
 
 The mirror implements a [witness][]'s `add-checkpoint` endpoint to update its
-witness checkpoint and schedule an update, but it does not need to generate and
-respond with any cosignatures. That is, the mirror MAY handle the request by
-internally updating state and responding with an empty response body.
+witness checkpoint and schedule an update:
+
+    POST <submission prefix>/add-checkpoint
+
+The request is handled identically to that of a witness, updating the witness
+checkpoint (but not the mirror checkpoint), with the exception that it does not
+need to generate and respond with any cosignatures. The mirror MAY handle the
+request by internally updating the witness checkpoint and responding with an
+empty response body.
 
 The mirror MAY maintain respond with witness cosignatures if it wishes to
 additionally provide a public witness service using its witness state. If so,
@@ -81,7 +87,7 @@ this witnessing service MUST have a name that is different from the mirror's
 cosigner origin.
 
 In addition to updating based on external requests to the `add-checkpoint`
-interface, a mirror SHOULD also periodically poll the origin log, and other
+endpoint, a mirror SHOULD also periodically poll the origin log, and other
 mirrors, for updates. It does so by downloading the log's latest checkpoint and,
 if it is ahead of the mirror's witness position, downloading a consistency proof
 and then updating the witness position as in `add-checkpoint`. This process MAY

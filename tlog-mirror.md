@@ -169,7 +169,7 @@ mirror.
    are not contained in a tree of size `mirror_size`.
 
 9. For each entry bundle that is not already in the tile store, run the
-   following to download the bundle. Bundles MAY be downloaded inp arallel, or
+   following to download the bundle. Bundles MAY be downloaded in parallel, or
    in any order.
 
    1. Download the entry to memory.

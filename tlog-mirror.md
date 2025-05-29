@@ -186,21 +186,28 @@ mirror.
      2. If so, add an extended cosignature to `witness_checkpoint` and save the
         result as the new mirror checkpoint.
 
-#### Downloading Tiles
+A mirror following this procedure MAY eagerly download resources to memory, or
+some local cache, in a different order than recommended. However, those
+resources will not have been validated. This procedure is designed to allow a
+mirror to update while bounding the number of unvalidated resources.
 
-Mirrors MAY obtain tiles from any source, including:
+#### Downloading Resources
+
+Mirrors MAY obtain tiles and bundles from any source, including:
 
 * the origin log's HTTP interface
 * another mirror's HTTP interface
-* a local cache of not-yet-validated tiles
+* a local cache of not-yet-validated resources
 * uploaded through some other HTTP endpoint
 
-However, the mirror MUST validate all received tiles are consistent with the new
-mirror checkpoint before signing the new checkpoint. As in the origin log,
-when the mirror stores a full tile, it MAY delete the corresponding partial
-tiles. However, it MUST NOT do this until the full tile has been validated. It
-is RECOMMENDED to validate new tiles before persisting them, as in the
+However, the mirror MUST validate all received resources are consistent with the
+new mirror checkpoint before signing the new checkpoint. It is RECOMMENDED to
+validate new sources before persisting them, as in the
 [recommended update procedure](#recommended-update-procedure).
+
+As in the origin log, when the mirror validates and stores a full tile, it MAY
+delete the corresponding partial tiles. However, it MUST NOT do this until the
+full tile has been validated.
 
 When downloading partial tiles, the mirror MAY fetch the corresponding full tile
 as a fallback. However, if it does so, it MUST truncate the result to the size

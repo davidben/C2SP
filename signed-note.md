@@ -125,6 +125,9 @@ runtime if possible.
 
 * `0x05` — RFC 6962 `TreeHeadSignature`s, as specified by c2sp.org/static-ct-api.
 
+* `0x06` — (DRAFT) Timestamped Ed25519 extended cosignatures, as specified by
+  c2sp.org/tlog-ext-cosignature.
+
 * `0xfa`–`0xfe` — Reserved for future use.
 
 * `0xff` — Reserved for signature types without an identifier byte assigned by

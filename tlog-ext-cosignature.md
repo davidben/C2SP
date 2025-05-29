@@ -50,11 +50,11 @@ as `example.com/mirror42`. This is only a recommendation to avoid collisions,
 and clients MUST NOT assume that the origin is following this format or that
 the URL corresponds to a reachable endpoint.
 
-An extended cosigner follows some append-only branch of the log, either by
-being the log operator or by checking consistency proofs, as in a witness. If it
-makes an extended cosignature for some checkpoint, it asserts that this
-checkpoint is part of its append-only branch. The signature also provides
-additional cosigner-specific assertions about the checkpoint.
+For each supported log, an extended cosigner follows some append-only branch of
+the log, either by being the log operator or by checking consistency proofs, as
+in a witness. If it makes an extended cosignature for some checkpoint, it
+asserts that this checkpoint is part of its append-only branch. The signature
+also provides additional cosigner-specific assertions about the checkpoint.
 
 For example, a [mirror][] cosignature asserts that the checkpoint's contents are
 available from its monitoring interface. A [witness][] MAY also be operated as
@@ -67,8 +67,9 @@ If an extended cosigner signs inconsistent checkpoints, it is held responsible
 *both* for violating the append-only property and *also* for meeting its defined
 guarantees for all entries in any checkpoints that it signed.
 
-A single extended cosigner MAY generate signatures for checkpoints in multiple
-logs, identified by the log origin.
+A single extended cosigner, with a single cosigner origin and public key, MAY
+generate extended cosignatures for checkpoints from multiple logs. The signed
+message, defined below, includes both the cosigner and log origin.
 
 An extended cosigner's origin identifies the cosigner and thus the assertions
 provided. If a single operator performs multiple extended cosigner roles in an

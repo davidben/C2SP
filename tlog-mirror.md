@@ -128,7 +128,7 @@ run the following procedure. If this job is already scheduled, the mirror SHOULD
 NOT schedule a redundant job, though doing so will not impact correctness of
 mirror.
 
-1. Let `mirror_size` be the tree size of the mirror checkpoint, or or zero if
+1. Let `mirror_size` be the tree size of the mirror checkpoint, or zero if
    the mirror has not copied the log yet.
 
 2. Let `witness_checkpoint` be the witness checkpoint. Let `witness_size` be its

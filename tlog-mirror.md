@@ -109,7 +109,7 @@ checkpoint is first updated to tree size 100, then 200, then 300. If the updates
 to 200 and 300 occur while the mirror is downloading tiles for tree size 100,
 the mirror checkpoint may skip tree size 200 and next update to 300. Although a
 tree size of 300 contains all entries from a tree size of 200, some
-[partial tiles][tiled transparency log][] may not overlap.
+[partial tiles][tiled transparency log] may not overlap.
 
 #### Recommended Update Procedure
 

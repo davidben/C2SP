@@ -81,7 +81,7 @@ need to generate and respond with any cosignatures. The mirror MAY handle the
 request by internally updating the witness checkpoint and responding with an
 empty response body.
 
-The mirror MAY maintain respond with witness cosignatures if it wishes to
+The mirror MAY respond with witness cosignatures if it wishes to
 additionally provide a public witness service using its witness state. If so,
 this witnessing service MUST have a name that is different from the mirror's
 cosigner origin.
@@ -102,7 +102,7 @@ mirror MUST NOT update the mirror checkpoint and generate an
 [extended cosignature][] until all tiles contained in the new checkpoint value
 are downloaded and available.
 
-Not all witness checkpoints will necessarily have corresponding to mirror
+Not all witness checkpoints will necessarily have corresponding mirror
 checkpoints. The mirror's update process MAY skip witness checkpoints, e.g. if
 the witness checkpoints update more frequently. For example, suppose the witness
 checkpoint is first updated to tree size 100, then 200, then 300. If the updates
@@ -125,7 +125,7 @@ position before being saved to the mirror's tile store. This ensures:
 
 When a mirror's witness position is updated, the mirror schedules a job to
 run the following procedure. If this job is already scheduled, the mirror SHOULD
-NOT schedule a redundant job, though doing so will not impact correctness of
+NOT schedule a redundant job, though doing so will not impact correctness of the
 mirror.
 
 1. Let `mirror_size` be the tree size of the mirror checkpoint, or zero if

@@ -172,10 +172,11 @@ mirror.
    following to download the bundle. Bundles MAY be downloaded in parallel, or
    in any order.
 
-   1. Download the entry to memory.
-   2. Compute the hashes of each entry.
+   1. Download the entry bundle to memory.
+   2. Compute the hashes of each entry in the bundle.
    3. Check that each hash matches the corresponding tile at level 0.
-   4. If any hash does not, terminate this procedure with an error.
+   4. If all hashes match, save the downloaded bundle to the tile source. If any
+      hash does not, terminate this procedure with an error.
 
 10. After all new tiles and bundles have been verified and persisted to storage,
     run the following step atomically. This step MUST be synchronized with other
@@ -191,6 +192,11 @@ some local cache, in a different order than recommended. However, those
 resources will not have been validated. This procedure is designed to allow a
 mirror to update while bounding the number of unvalidated resources.
 
+A mirror MAY opt to skip downloading a parent tile in favor of computing it
+based on its children tiles from a lower level. However, those children tiles
+cannot be validated until the parent tile is validated. Such a strategy thus
+requires the update process to mantain a larger number of unvalidated resources.
+
 #### Downloading Resources
 
 Mirrors MAY obtain tiles and bundles from any source, including:
@@ -199,6 +205,7 @@ Mirrors MAY obtain tiles and bundles from any source, including:
 * another mirror's HTTP interface
 * a local cache of not-yet-validated resources
 * uploaded through some other HTTP endpoint
+* computed from child tiles
 
 However, the mirror MUST validate all received resources are consistent with the
 new mirror checkpoint before signing the new checkpoint. It is RECOMMENDED to

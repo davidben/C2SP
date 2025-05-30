@@ -40,10 +40,10 @@ document are to be interpreted as described in [BCP 14][] [RFC 2119][] [RFC
 
 An extended cosignature is a generalization of a [witness][] [cosignature][].
 Entities that create extended cosignatures are known as **extended cosigners**.
-They may also be referred to as **cosigners** when it is clear from context that
-this it is this formulation.
+They may also be referred to as **cosigners** when the formulation is clear
+from context.
 
-Extended cosigners have **origin** and a public key. The origin is a unique
+Extended cosigners have an **origin** and a public key. The origin is a unique
 identifier for the cosigner. The origin MUST be non-empty, and it SHOULD be
 a schema-less URL containing neither Unicode spaces nor plus (U+002B), such
 as `example.com/mirror42`. This is only a recommendation to avoid collisions,
@@ -63,9 +63,9 @@ baseline append-only property. Other documents MAY define extended cosigner
 roles that provide other assertions, e.g. checking some [checkpoint][]
 extension, or some property of the entries.
 
-If an extended cosigner signs inconsistent checkpoints, it is held responsible
-*both* for violating the append-only property and *also* for meeting its defined
-guarantees for all entries in any checkpoints that it signed.
+When an extended cosigner signs checkpoints, it is held responsible *both*
+for upholding the append-only property *and* for meeting its defined guarantees
+for all entries in any checkpoints that it signed.
 
 A single extended cosigner, with a single cosigner origin and public key, MAY
 generate extended cosignatures for checkpoints from multiple logs. The signed

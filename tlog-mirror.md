@@ -142,7 +142,7 @@ mirror.
 
 5. Check if each such tile is already in the tile store. If any are missing:
 
-   1. Download each of those tiles to memory.
+   1. [Download](#downloading-resources) each of those tiles to memory.
    2. Reconstruct the right edge of the tree from these tiles and compute the
       root hash. Note that every entry of these files will be incorporated into
       the root hash.
@@ -159,7 +159,7 @@ mirror.
    checking a child tile. Downloading tile in order of decreasing level achieves
    this.
 
-   1. Download the tile to memory.
+   1. [Download](#downloading-resources) the tile to memory.
    2. Compute the hash of a Merkle Tree built over the 256 entries in the tile.
    3. Compare the hash to the corresponding entry in the parent tile.
    4. If it matches, save the downloaded tile to the tile store. If it does not,
@@ -172,7 +172,7 @@ mirror.
    following to download the bundle. Bundles MAY be downloaded in parallel, or
    in any order.
 
-   1. Download the entry bundle to memory.
+   1. [Download](#downloading-resources) the entry bundle to memory.
    2. Compute the hashes of each entry in the bundle.
    3. Check that each hash matches the corresponding tile at level 0.
    4. If all hashes match, save the downloaded bundle to the tile source. If any

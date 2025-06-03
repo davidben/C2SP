@@ -43,11 +43,11 @@ Entities that create extended cosignatures are known as **extended cosigners**.
 They may also be referred to as **cosigners** when the formulation is clear
 from context.
 
-Extended cosigners have an **origin** and a public key. The origin is a unique
-identifier for the cosigner. The origin MUST be non-empty, and it SHOULD be
+Extended cosigners have an **name** and a public key. The name is a unique
+identifier for the cosigner. The name MUST be non-empty, and it SHOULD be
 a schema-less URL containing neither Unicode spaces nor plus (U+002B), such
 as `example.com/mirror42`. This is only a recommendation to avoid collisions,
-and clients MUST NOT assume that the origin is following this format or that
+and clients MUST NOT assume that the name is following this format or that
 the URL corresponds to a reachable endpoint.
 
 For each supported log, an extended cosigner follows some append-only branch of
@@ -67,26 +67,26 @@ When an extended cosigner signs checkpoints, it is held responsible *both*
 for upholding the append-only property *and* for meeting its defined guarantees
 for all entries in any checkpoints that it signed.
 
-A single extended cosigner, with a single cosigner origin and public key, MAY
+A single extended cosigner, with a single cosigner name and public key, MAY
 generate extended cosignatures for checkpoints from multiple logs. The signed
-message, defined below, includes both the cosigner and log origin.
+message, defined below, includes both the cosigner name and log origin.
 
-An extended cosigner's origin identifies the cosigner and thus the assertions
+An extended cosigner's name identifies the cosigner and thus the assertions
 provided. If a single operator performs multiple extended cosigner roles in an
-ecosystem, each role MUST use a distinct cosigner origin and SHOULD use a
+ecosystem, each role MUST use a distinct cosigner name and SHOULD use a
 distinct key.
 
 ## Format
 
 Concretely, an extended cosignature is a [note signature][] applied to a
 [checkpoint][]. The note signature's key name MUST be the extended cosigner's
-origin.
+name.
 
 The key ID MUST be
 
-    SHA-256(<origin> || "\n" || 0x06 || 32-byte Ed25519 cosigner public key)[:4]
+    SHA-256(<name> || "\n" || 0x06 || 32-byte Ed25519 cosigner public key)[:4]
 
-Clients are configured with tuples of (cosigner origin, public key, supported
+Clients are configured with tuples of (cosigner name, public key, supported
 extended cosignature version). Based on that, they can compute the expected
 name and key ID, and ignore any signature lines that don't match.
 
@@ -115,7 +115,7 @@ newline, but not including any signature lines).
 The header lines are:
 
 * The fixed string `ext-cosignature/v1` for domain separation
-* The extended cosigner origin
+* The extended cosigner name
 * The fixed string `time`, a single space (0x20), and the number of seconds since the UNIX epoch encoded as an ASCII decimal with no leading zeroes
 
 The timestamp value in the third header line MUST match

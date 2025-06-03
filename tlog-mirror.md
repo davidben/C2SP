@@ -34,7 +34,7 @@ A mirror is an [extended cosigner][] that stores a copy of a log and, when
 signing a [checkpoint][], provides the additional guarantee that the mirror has
 durably logged the contents of the checkpoint and has made it accessible.
 
-A mirror is defined by a cosigner origin, a pubic key, and by two URL prefixes:
+A mirror is defined by a name, a pubic key, and by two URL prefixes:
 the *submission prefix* for write APIs and the *monitoring prefix* for read
 APIs. A mirror MAY use the same value for both the *submission prefix* and the
 *monitoring prefix*.
@@ -83,8 +83,7 @@ empty response body.
 
 The mirror MAY respond with witness cosignatures if it wishes to
 additionally provide a public witness service using its witness state. If so,
-this witnessing service MUST have a name that is different from the mirror's
-cosigner origin.
+this witnessing service MUST have a different name from the mirror.
 
 In addition to updating based on external requests to the `add-checkpoint`
 endpoint, a mirror SHOULD also periodically poll the origin log, and other

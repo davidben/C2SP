@@ -3,9 +3,8 @@
 This document describes how to mirror a transparency log, and how to obtain
 signatures asserting that a mirror has done so.
 
-<!-- TODO: Replace these links with https://c2sp.org/tlog-ext-cosignature -->
-[extended cosigner]: ./tlog-ext-cosignature.md
-[extended cosignature]: ./tlog-ext-cosignature.md
+[cosigner]: https://c2sp.org/tlog-cosignature
+[cosignature]: https://c2sp.org/tlog-cosignature
 [checkpoint]: https://c2sp.org/tlog-checkpoint
 [tiled transparency log]: https://c2sp.org/tlog-tiles
 [witness]: https://c2sp.org/tlog-witness
@@ -30,8 +29,8 @@ document are to be interpreted as described in [BCP 14][] [RFC 2119][] [RFC
 
 ## Introduction
 
-A mirror is an [extended cosigner][] that stores a copy of a log and, when
-signing a [checkpoint][], provides the additional guarantee that the mirror has
+A mirror is a [cosigner][] that stores a copy of a log and, when signing a
+[checkpoint][], provides the additional guarantee that the mirror has
 durably logged the contents of the checkpoint and has made it accessible.
 
 A mirror is defined by a name, a pubic key, and by two URL prefixes:
@@ -49,7 +48,7 @@ The mirror maintains a copy of each origin log and serves it publicly via the
 [tiled transparency log][] interface. It uses a URL prefix of
 `<monitoring prefix>/<encoded origin>`, where `encoded origin` is the log's
 origin, [percent-encoded][]. The checkpoint served from this prefix MUST include
-an [extended cosignature][] from the mirror.
+a [cosignature][] from the mirror.
 
 ## Updating a Mirror
 
@@ -97,9 +96,9 @@ be implemented externally to the mirror by posting the result to
 
 Whenever the witness checkpoint is ahead of the mirror checkpoint for some
 supported log, the mirror downloads tiles to update the mirror checkpoint. The
-mirror MUST NOT update the mirror checkpoint and generate an
-[extended cosignature][] until all tiles contained in the new checkpoint value
-are downloaded and available.
+mirror MUST NOT update the mirror checkpoint and generate a [cosignature][]
+until all tiles contained in the new checkpoint value are downloaded and
+available.
 
 Not all witness checkpoints will necessarily have corresponding mirror
 checkpoints. The mirror's update process MAY skip witness checkpoints, e.g. if
@@ -183,8 +182,8 @@ mirror.
 
      1. Check if the mirror checkpoint's tree size is still less than
         `witness_size`.
-     2. If so, add an extended cosignature to `witness_checkpoint` and save the
-        result as the new mirror checkpoint.
+     2. If so, add a cosignature to `witness_checkpoint` and save the result as
+        the new mirror checkpoint.
 
 A mirror following this procedure MAY eagerly download resources to memory, or
 some local cache, in a different order than recommended. However, those

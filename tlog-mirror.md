@@ -9,12 +9,20 @@ signatures asserting that a mirror has done so.
 [tiled transparency log]: https://c2sp.org/tlog-tiles
 [witness]: https://c2sp.org/tlog-witness
 [percent-encoded]: https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1
+[subtree]: https://www.ietf.org/archive/id/draft-davidben-tls-merkle-tree-certs-05.html#name-subtrees
+[subtree consistency proof]: https://www.ietf.org/archive/id/draft-davidben-tls-merkle-tree-certs-05.html#name-subtree-consistency-proofs
 
 ## Conventions used in this document
+
+The base64 encoding used throughout is the standard Base 64 encoding specified
+in [RFC 4648][], Section 4.
 
 `U+` followed by four hexadecimal characters denotes a Unicode codepoint, to be
 encoded in UTF-8. `0x` followed by two hexadecimal characters denotes a byte
 value in the 0-255 range.
+
+`[start, end)`, where `start <= end`, denotes the half-open interval containing
+integers `x` such that `start <= x < end`.
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
 "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this
@@ -33,7 +41,7 @@ A mirror is a [cosigner][] that stores a copy of a log and, when signing a
 [checkpoint][], provides the additional guarantee that the mirror has
 durably logged the contents of the checkpoint and has made it accessible.
 
-A mirror is defined by a name, a pubic key, and by two URL prefixes:
+A mirror is defined by a name, a public key, and by two URL prefixes:
 the *submission prefix* for write APIs and the *monitoring prefix* for read
 APIs. A mirror MAY use the same value for both the *submission prefix* and the
 *monitoring prefix*.
@@ -52,198 +60,237 @@ a [cosignature][] from the mirror.
 
 ## Updating a Mirror
 
-To facilitate updating, each mirror maintains a witness checkpoint for each
-origin log. The witness checkpoint is at or ahead of the mirrored checkpoint and
-tracks data that has yet to be mirrored.
+The mirror update process is designed to be safely interruptible, while avoding
+large atomic operations. For each origin log, a mirror maintains the following:
 
-Mirrors update in two stages:
+* A copy of the log. The latest checkpoint of this log copy is known as the
+  *mirror checkpoint*.
 
-1. Update the witness checkpoint by verifying a signed checkpoint and
+* A *pending checkpoint*, which is at or ahead of the mirror checkpoint. If
+  ahead of the mirror checkpoint, the pending checkpoint describes entries that
+  have yet to be incorporated into the mirror.
+
+* A list of *pending entries* that have yet to be incorporated into the mirror
+  checkpoint. The mirror's *next entry* is the log index of the first entry that
+  is not in either the log or pending entry list.
+
+The update process ensures that all current and past pending checkpoints are
+consistent, and all pending entries are contained in the current pending
+checkpoint. Thus mirrors MAY commit pending entries to the log, serving them as
+entry bundles, as soon as they are added. That is, a mirror MAY use the same
+underlying storage for entry bundles and pending entries, without distinguishing
+between them. It is expected that most tiled log implementations will do this.
+
+Mirrors update in three stages:
+
+1. A mirror client updates the pending checkpoint with a signed checkpoint and a
    consistency proof.
-2. Update the mirror checkpoint to the witness checkpoint by downloading tiles.
 
-This two-stage design minimizes atomic operations when operating a mirror. The
-mirror checkpoint updates asynchronously from the witness checkpoint, so the
-witness checkpoint can continue to be updated while the tiles are downloaded for
-the mirror checkpoint.
+2. A mirror client uploads new entries to the pending entry list, up to the
+   pending checkpoint.
 
-### Witness Checkpoint
+3. The mirror computes log tiles as needed to fully commit pending entries to
+   the log and updates the mirror checkpoint.
+
+The next sections describe the HTTP endpoints used by mirror clients to update
+the log.
+
+### add-checkpoint
 
 The mirror implements a [witness][]'s `add-checkpoint` endpoint to update its
-witness checkpoint and schedule an update:
+pending checkpoint for a log:
 
-    POST <submission prefix>/add-checkpoint
+    POST <submission prefix>/<encoded origin>/add-checkpoint
 
-The request is handled identically to that of a witness, updating the witness
+`encoded origin` is the log's origin, [percent-encoded][].
+
+The request is handled identically to that of a witness, updating the pending
 checkpoint (but not the mirror checkpoint), with the exception that it does not
 need to generate and respond with any cosignatures. The mirror MAY handle the
-request by internally updating the witness checkpoint and responding with an
-empty response body.
-
-The mirror MAY respond with witness cosignatures if it wishes to
-additionally provide a public witness service using its witness state. If so,
-this witnessing service MUST have a different name from the mirror.
-
-In addition to updating based on external requests to the `add-checkpoint`
-endpoint, a mirror SHOULD also periodically poll the origin log, and other
-mirrors, for updates. It does so by downloading the log's latest checkpoint and,
-if it is ahead of the mirror's witness position, downloading a consistency proof
-and then updating the witness position as in `add-checkpoint`. This process MAY
-be implemented externally to the mirror by posting the result to
-`add-checkpoint`.
-
-### Mirror Checkpoint
-
-Whenever the witness checkpoint is ahead of the mirror checkpoint for some
-supported log, the mirror downloads tiles to update the mirror checkpoint. The
-mirror MUST NOT update the mirror checkpoint and generate a [cosignature][]
-until all tiles contained in the new checkpoint value are downloaded and
-available.
-
-Not all witness checkpoints will necessarily have corresponding mirror
-checkpoints. The mirror's update process MAY skip witness checkpoints, e.g. if
-the witness checkpoints update more frequently. For example, suppose the witness
-checkpoint is first updated to tree size 100, then 200, then 300. If the updates
-to 200 and 300 occur while the mirror is downloading tiles for tree size 100,
-the mirror checkpoint may skip tree size 200 and next update to 300. Although a
-tree size of 300 contains all entries from a tree size of 200, some
-[partial tiles][tiled transparency log] may not overlap.
-
-#### Recommended Update Procedure
-
-This section gives a RECOMMENDED procedure for updating the mirror checkpoint.
-It saves tiles in an order such that each tile is authenticated to the witness
-position before being saved to the mirror's tile store. This ensures:
-
-* There is no need to run the procedure atomically with other log operations.
-  Only storing individual resources must be atomic.
-
-* The procedure can be safely interrupted and restarted at any time, or even run
-  concurrently with other instances of the procedure.
-
-When a mirror's witness position is updated, the mirror schedules a job to
-run the following procedure. If this job is already scheduled, the mirror SHOULD
-NOT schedule a redundant job, though doing so will not impact correctness of the
-mirror.
-
-1. Let `mirror_size` be the tree size of the mirror checkpoint, or zero if
-   the mirror has not copied the log yet.
-
-2. Let `witness_checkpoint` be the witness checkpoint. Let `witness_size` be its
-   tree size. Note the witness checkpoint may change while this procedure is
-   running.
-
-3. If `mirror_size` is equal to `witness_size`, exit this procedure.
-
-4. Determine the partial tiles contained in a tree of size `witness_size`. There
-   is at most one per level, at the right-most position.
-
-5. Check if each such tile is already in the tile store. If any are missing:
-
-   1. [Download](#downloading-resources) each of those tiles to memory.
-   2. Reconstruct the right edge of the tree from these tiles and compute the
-      root hash. Note that every entry of these files will be incorporated into
-      the root hash.
-   3. Compare the root hash to `witness_checkpoint`'s hash. If it matches, save
-      each downloaded tile to the tile store. If it does not match, terminate
-      this procedure with an error.
-
-6. Determine the full tiles contained in a tree of size `witness_size` that are
-   not contained in a tree of size `mirror_size`.
-
-7. For each tile that is not already in the tile store, run the following to
-   download the tile. Tiles MAY be downloaded in parallel, or in any order,
-   provided that parent tiles, full or partial, are checked and stored before
-   checking a child tile. Downloading tile in order of decreasing level achieves
-   this.
-
-   1. [Download](#downloading-resources) the tile to memory.
-   2. Compute the hash of a Merkle Tree built over the 256 entries in the tile.
-   3. Compare the hash to the corresponding entry in the parent tile.
-   4. If it matches, save the downloaded tile to the tile store. If it does not,
-      terminate this procedure with an error.
-
-8. Determine the entry bundles contained in a tree of size `witness_size` that
-   are not contained in a tree of size `mirror_size`.
-
-9. For each entry bundle that is not already in the tile store, run the
-   following to download the bundle. Bundles MAY be downloaded in parallel, or
-   in any order.
-
-   1. [Download](#downloading-resources) the entry bundle to memory.
-   2. Compute the hashes of each entry in the bundle.
-   3. Check that each hash matches the corresponding tile at level 0.
-   4. If all hashes match, save the downloaded bundle to the tile source. If any
-      hash does not, terminate this procedure with an error.
-
-10. After all new tiles and bundles have been verified and persisted to storage,
-    run the following step atomically. This step MUST be synchronized with other
-    changes to the mirror state:
-
-     1. Check if the mirror checkpoint's tree size is still less than
-        `witness_size`.
-     2. If so, add a cosignature to `witness_checkpoint` and save the result as
-        the new mirror checkpoint.
-
-A mirror following this procedure MAY eagerly download resources to memory, or
-some local cache, in a different order than recommended. However, those
-resources will not have been validated. This procedure is designed to allow a
-mirror to update while bounding the number of unvalidated resources.
-
-A mirror MAY opt to skip downloading a parent tile in favor of computing it
-based on its children tiles from a lower level. However, those children tiles
-cannot be validated until the parent tile is validated. Such a strategy thus
-requires the update process to mantain a larger number of unvalidated resources.
-
-#### Downloading Resources
-
-Mirrors MAY obtain tiles and bundles from any source, including:
-
-* the origin log's HTTP interface
-* another mirror's HTTP interface
-* a local cache of not-yet-validated resources
-* uploaded through some other HTTP endpoint
-* computed from child tiles
-
-However, the mirror MUST validate all received resources are consistent with the
-new mirror checkpoint before signing the new checkpoint. It is RECOMMENDED to
-validate new sources before persisting them, as in the
-[recommended update procedure](#recommended-update-procedure).
-
-As in the origin log, when the mirror validates and stores a full tile, it MAY
-delete the corresponding partial tiles. However, it MUST NOT do this until the
-full tile has been validated.
-
-When downloading partial tiles, the mirror MAY fetch the corresponding full tile
-as a fallback. However, if it does so, it MUST truncate the result to the size
-of the requested partial tile. Extra entries will not be validated by the
+request by internally updating the pending checkpoint and responding with an
+empty response body. The mirror MUST retain the log's signature in the pending
 checkpoint.
 
-### TBD Push-based Updates
+The mirror cosigner MUST NOT sign the checkpoint in this process. It MAY respond
+with witness cosignatures if the mirror operator wishes to additionally provide
+a separate witness service using its pending checkpoint. If so, this witness
+service MUST be a distinct cosigner from the mirror cosigner, with a distinct
+name. The mirror's signature is computed later, as described below.
 
-TODO: It may be useful to have a push-based update endpoint, so that a log
-can upload data to a mirror, and get a response once the mirror has updated far
-enough. In the current design, the log needs to poll the checkpoint endpoint to
-find out when the mirror has caught up.
+### add-entries
 
-It would be a matter of posting a stream of binary data containing
-the necessary tiles in order of the
-[recommended update procedure](#recommended-update-procedure). The mirror can
-then run that procedure but, instead of downloading tiles, pull data off the
-stream. (It is possible the stream contains data you already have. That's fine,
-just skip it.) This is where being able to run the update process concurrently
-is a real win.
+The mirror implements a `add-entries` endpoint to upload entries for a supported
+log:
 
-The main challenge is synchronizing with *some* known witness position. The
-client would POST something like `<old_size> <new_size>` followed by the data
-for such an update. `old_size` must be less than or equal to the mirror
-position. (If too far behind, the mirror might send a 409 Conflict and tell you
-to be less wasteful.) `new_size` obviously cannot be greater than the witness
-position. If it's equal, we're golden. If less than, we need to be told the hash
-and a consistency proof to the actual witness position... more likely we'd ask
-for a 409 Conflict, but then you might never be able to get in sync if the
-witness position updates too fast.
+    POST <submission prefix>/<encoded origin>/add-entries
 
-A push-based endpoint design could either subsume the `add-checkpoint` endpoint,
-or be done in two separate HTTP requests, one to update the witness position and
-another to stream data.
+`encoded origin` is the log's origin, [percent-encoded][].
+
+#### Request Body
+
+The request body MUST have `Content-Type` of `application/octet-stream` and
+contain the following values, concatenated.
+
+* 8 bytes, encoding a big-endian, unsigned 64-bit integer: `upload_start`
+* 8 bytes, encoding a big-endian, unsigned 64-bit integer: `upload_end`
+* 2 bytes, encoding a big-endian, unsigned 16-bit integer: `ticket_size`
+* `ticket_size` bytes, containing an opaque `ticket` value, described below
+* A sequence of *entry packages*, described below
+
+`upload_end` MUST be equal to the pending checkpoint's tree size, or that of a
+previously valid pending checkpoint. `ticket` is an opaque value from the
+mirror, or the empty string, to help the mirror recover past pending
+checkpoints.
+
+`upload_start` MUST be less or equal to `upload_end`. It MUST also be less or
+equal to the mirror's next entry for the origin.
+
+The request body uploads the log entries whose indices are in
+`[upload_start, upload_end)`. Entries are grouped into bounded-size entry
+packages. Each package has a [subtree consistency proof][] that allows the
+mirror to verify and commit the entries in the package without buffering the
+entire request body.
+
+Each entry package is determined by a half-open interval `[start, end)` of log
+indices. The request MUST contain entry packages whose intervals' disjoint
+union, in order, is the interval `[upload_start, upload_end)`. The overall
+interval MUST be divided into packages at multiples of 256.
+
+More precisely, if `upload_start` is equal to `upload_end`, there are no
+packages. Otherwise, let `rounded_start` be `upload_start` rounded down to a
+multiple of 256, and let `rounded_end` be `upload_end` rounded up to a
+multiple of 256. The request MUST contain
+`num_packages = (rounded_end - rounded_start) / 256` packages. Entry
+package `i`, for `0 <= i < num_packages`, MUST be computed from the interval
+`[start, end)` where:
+
+    start = upload_start, rounded_start + i * 256
+    end = upload_end, rounded_start + (i + 1) * 256
+
+The package MUST contain the following values, concatenated.
+
+* The log entries in `[start, end)`, each with a big-endian, 16-bit length
+  prefix
+* 1 byte, encoding an 8-bit unsigned integer, `num_hashes`, which MUST be at
+  most 63
+* `num_hashes` [subtree consistency proof][] hash values
+
+The subtree consistency proof is computed from the [subtree][] defined by
+`[rounded_start + i * 256, end)`, and the log checkpoint with tree size
+`upload_end`.
+
+TODO: This is currently citing an individual IETF draft for subtrees, though it
+is versioned and immutable. Should we, for now, copy and paste that text
+somewhere here? (Subtrees are also slightly more general than needed here. Every
+subtree we consider is directly contained in the target tree size.)
+
+#### Processing
+
+The request body is not bounded, so the client and mirror SHOULD stream it.
+
+The mirror processes it as follows:
+
+First, the mirror reads `upload_start`, `upload_end`, and `ticket`. If
+`upload_end` does not match a known pending checkpoint, the mirror MUST respond
+with a "409 Conflict" HTTP status code. If `upload_start` is greater than the
+mirror's next entry, or too far below the mirror's next entry, the mirror MUST
+also respond with a "409 Conflict" HTTP status code.
+
+When sending a 409 response, the response body MUST have a `Content-Type` of
+`text/x.tlog.mirror-info` and consist of three lines, each followed by a
+newline (U+000A):
+
+* The tree size of a valid pending checkpoint, in decimal
+* The next entry, in decimal
+* An opaque, possibly zero length, ticket value, encoded in base64
+
+The mirror SHOULD send this response without waiting for the entire request body
+to be available. Conversely, the client SHOULD be prepared to receive a 409
+response before the request body is fully sent. If the client's `upload_end`
+value was valid, the first line SHOULD contain `upload_end`. Otherwise, it
+SHOULD the tree size of the current pending checkpoint. This allows the client
+to resume an interrupted upload without recomputing subtree consistency proofs.
+
+On receipt of this message, the client SHOULD retry setting `upload_end` to the
+tree size, `upload_start` to the advertised next entry value, and the `ticket`
+to the received ticket. If a client doesn't have information on the mirror, it
+MAY initially make a request with `upload_start` and `upload_end` set to zero to
+obtain it.
+
+To reduce the chance of a failed retry, if the mirror state has changed again,
+mirrors SHOULD accept any of the last several pending checkpoint values as
+`upload_end`. This MAY be implemented with extra state, or by storing the signed
+checkpoint in an opaque, authenticated ticket. The ticket MAY, for example, be
+encrypted with a symmetric secret known only to the mirror.
+
+The mirror then reads and processes each entry package. For each entry package
+defined by `[start, end)`, it MUST authenticate the entries by verifying the
+subtree consistency proof. First, it reconstructs the subtree hash based on the
+received entries and, if `start` is not the left endpoint of the subtree, any
+additional entries already saved. It then verifies the subtree consistency proof
+using this hash and the checkpoint at `upload_end`.
+
+If this verification process fails, it MUST respond with an
+"422 Unprocessable Entity" HTTP status code and end processing. Otherwise, it
+saves the entries as pending entries, either directly into tiled log storage, or
+into its pending entries store. If any entries have already been written to the
+log or the pending entry list, either because `upload_start` was less than the
+next index, the mirror MUST skip saving that entry.
+
+If all expected entry packages are successfully validated and committed, the
+next entry will be greater or equal to `upload_end`. The mirror then finishes
+committing entries up to `upload_end` to the log. For example, a mirror that
+stores individual tiles would compute new tiles and start serving them.
+
+The mirror then, atomically, checks if the mirror checkpoint's tree size is less
+than `upload_end` and, if so, signs a new checkpoint at `upload_end` and commits
+it, along with the matching log signature, to its copy of the log.
+
+#### Implementation Considerations
+
+Unlike the `add-checkpoint` endpoint, the `add-entries` endpoint is not
+processed as a single atomic transaction. A mirror SHOULD permit multiple
+clients to concurrently send requests to the endpoint. This avoids a
+denial-of-service attack if one client begins an `add-entries` stream but pauses
+it partway through. Additionally, clients and mirrors MUST continue operating
+correctly if an `add-entries` stream is interrupted. The API is designed to
+support this with minimal synchronization.
+
+When checking the `upload_start` and `upload_end` values, the mirror MUST act on
+*some* valid copy of its pending checkpoint and next index state. However, it
+MAY act on stale data without impacting correctness of the protocol. That is, it
+is not necessary to globally synchronize this check with `add-checkpoint`
+handling, or other instances of `add-entries`.
+
+When committing authenticated entries to the pending entries list, it is
+possible that, due to a concurrent instance of `add-entries`, some entries have
+already been added to the pending entries list or the mirror. Mirrors MUST
+correctly handle this case and continue operating correctly. This may require
+synchronization of individual log resources. In doing so, the mirror MAY assume
+that the two copies of the entries are identical. They will both be proven
+consistent with the pending checkpoints.
+
+When updating the mirror checkpoint to `upload_end`, it is possible that some
+concurrent of `add-entries` has already updated the checkpoint to `upload_end`
+or past it. In this case, the mirror MUST NOT rewind the checkpoint and MUST
+instead skip the update.
+
+Entry packages are divided at multiples of 256 to align with the entry bundle
+representation in the tiled log interface. It is expected that most
+implementations will compute exactly one entry bundle from each entry package
+and commit it directly to storage when the package is authenticated.
+
+A mirror that uses a different representation MAY buffer entry packets and defer
+committing them. For example, if the mirror internally stores tiles of size 512,
+it might commit entry packages two at a time.
+
+A mirror MAY process an entry package without waiting for the previous entry
+package to be durably committed to storage. However, the mirror MUST NOT sign
+or update its mirror checkpoint until all entries are durably committed. If the
+mirror commits entries out of order, it MUST correctly compute the next entry to
+be the *first* missing entry, even if some subsequent entries have been
+committed. Mirror clients will then reupload the subsequent entries.
+
+Mirrors MAY additionally implement other update processes, provided it continues
+to correctly operate `add-entries` and never violates its cosigner requirements
+on mirror checkpoints.
